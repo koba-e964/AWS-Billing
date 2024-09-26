@@ -9,6 +9,14 @@ from mypy_boto3_ce import CostExplorerClient
 SLACK_WEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']
 
 
+BillingEntry = typing.TypedDict('BillingEntry', {
+    'service_name': str,
+    'usage_type': str,
+    'billing': str,
+    'usage_quantity': str,
+})
+
+
 def lambda_handler(event, context) -> dict[str, typing.Any]:
     today = date.today()
 
@@ -16,10 +24,10 @@ def lambda_handler(event, context) -> dict[str, typing.Any]:
 
     # 合計とサービス毎の請求額を取得する
     total_billing = get_total_billing(client, today)
-    service_billings = get_service_billings(client, today)
+    usage_billings = get_usage_type_billings(client, today)
 
     # Slack用のメッセージを作成して投げる
-    (title, detail) = get_message(total_billing, service_billings)
+    (title, detail) = get_message(total_billing, usage_billings)
     post_slack(title, detail)
 
     return {
@@ -27,7 +35,9 @@ def lambda_handler(event, context) -> dict[str, typing.Any]:
         "body": json.dumps({
             "message": "calculation done",
             "total_billing": total_billing,
-            "service_billings": service_billings,
+            "service_billings": usage_billings,
+            "title": title,
+            "detail": detail,
         }),
     }
 
@@ -46,6 +56,7 @@ def get_total_billing(client: CostExplorerClient, today: date) -> dict:
             'AmortizedCost',
         ],
     )
+    print(json.dumps(response))
     return {
         'start': response['ResultsByTime'][0]['TimePeriod']['Start'],
         'end': response['ResultsByTime'][0]['TimePeriod']['End'],
@@ -53,7 +64,7 @@ def get_total_billing(client: CostExplorerClient, today: date) -> dict:
     }
 
 
-def get_service_billings(client: CostExplorerClient, today: date) -> list:
+def get_usage_type_billings(client: CostExplorerClient, today: date) -> list[BillingEntry]:
     (start_date, end_date) = get_total_cost_date_range(today)
 
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ce.html#CostExplorer.Client.get_cost_and_usage
@@ -65,26 +76,35 @@ def get_service_billings(client: CostExplorerClient, today: date) -> list:
         Granularity='MONTHLY',
         Metrics=[
             'AmortizedCost',
+            'UsageQuantity',
         ],
         GroupBy=[
             {
                 'Type': 'DIMENSION',
                 'Key': 'SERVICE',
             },
+            {
+                'Type': 'DIMENSION',
+                'Key': 'USAGE_TYPE',
+            },
         ],
     )
+    print(json.dumps(response))
 
     billings = []
 
     for item in response['ResultsByTime'][0]['Groups']:
+        usage_quantity = item['Metrics']['UsageQuantity']
         billings.append({
             'service_name': item['Keys'][0],
+            'usage_type': item['Keys'][1],
             'billing': item['Metrics']['AmortizedCost']['Amount'],
+            'usage_quantity': usage_quantity['Amount'] + ' ' + usage_quantity['Unit'],
         })
     return billings
 
 
-def get_message(total_billing: dict, service_billings: list) -> tuple[str, str]:
+def get_message(total_billing: dict, usage_billings: list[BillingEntry]) -> tuple[str, str]:
     start = datetime.strptime(
         total_billing['start'], '%Y-%m-%d').strftime('%m/%d')
 
@@ -97,14 +117,17 @@ def get_message(total_billing: dict, service_billings: list) -> tuple[str, str]:
     title = f'{start}～{end_yesterday}の請求額は、{total:.2f} USDです。'
 
     details = []
-    for item in service_billings:
+    for item in usage_billings:
         service_name = item['service_name']
+        usage_type = item['usage_type']
         billing = round(float(item['billing']), 2)
+        usage_quantity = item['usage_quantity']
 
         if billing == 0.0:
             # 請求無し（0.0 USD）の場合は、内訳を表示しない
             continue
-        details.append(f'  - {service_name}: {billing:.2f} USD')
+        details.append(
+            f'- {service_name}/{usage_type}: {billing:.2f} USD ({usage_quantity})')
 
     return title, '\n'.join(details)
 
