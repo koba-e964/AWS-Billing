@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: >
-  AWS Billing Checker
+Description: AWS Billing Checker
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -30,23 +29,23 @@ Resources:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
-            Action: "sts:AssumeRole"
+            Action: sts:AssumeRole
       Policies:
-        - PolicyName: "NotifySlackToBillingLambdaPolicy"
+        - PolicyName: NotifySlackToBillingLambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                  - "ce:GetCostAndUsage"
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - ce:GetCostAndUsage
                 Resource: "*"
-  HelloWorldFunction:
+  BillingPythonFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: hello_world/
+      CodeUri: billing-python/hello_world/
       Handler: app.lambda_handler
       Runtime: python3.12
       Architectures:
@@ -54,14 +53,16 @@ Resources:
       Environment:
         Variables:
           # このURLはコミット＆公開したくないため、デプロイ時にコマンドで設定する
-          SLACK_WEBHOOK_URL: !Ref SlackWebhookUrl
-      Role: !GetAtt BillingIamRole.Arn
+          SLACK_WEBHOOK_URL:
+            Ref: SlackWebhookUrl
+      Role:
+        Fn::GetAtt: [BillingIamRole, Arn]
       Events:
         HelloWorld:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /hello
-            Method: get
+            Path: /billing/python
+            Method: post
         NotifySlack:
           Type: Schedule
           Properties:
@@ -79,17 +80,20 @@ Resources:
     Properties:
       ResourceGroupName:
         Ref: ApplicationResourceGroup
-      AutoConfigurationEnabled: "true"
+      AutoConfigurationEnabled: true
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   HelloWorldApi:
     Description: API Gateway endpoint URL for Prod stage for Hello World function
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
+    Value:
+      Fn::Sub: "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  BillingPythonFunction:
     Description: Hello World Lambda Function ARN
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
+    Value:
+      Fn::GetAtt: [BillingPythonFunction, Arn]
+  BillingPythonFunctionIamRole:
     Description: Explicit IAM Role created for the function
-    Value: !GetAtt BillingIamRole.Arn
+    Value:
+      Fn::GetAtt: [BillingIamRole, Arn]

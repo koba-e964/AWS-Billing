@@ -2,29 +2,30 @@
 # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
 version = 0.1
 
-[default.global.parameters]
+[billing-python.global.parameters]
 stack_name = "AWS-Billing"
 
-[default.build.parameters]
+[billing-python.build.parameters]
 cached = true
 parallel = true
 
-[default.validate.parameters]
+[billing-python.validate.parameters]
 lint = true
 
-[default.deploy.parameters]
+[billing-python.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
+s3_prefix = "AWS-Billing-Python"
+region = "ap-northeast-1"
+disable_rollback = true
+image_repositories = []
 
-[default.package.parameters]
-resolve_s3 = true
-
-[default.sync.parameters]
+[billing-python.sync.parameters]
 watch = true
 
-[default.local_start_api.parameters]
+[billing-python.local_start_api.parameters]
 warm_containers = "EAGER"
 
-[default.local_start_lambda.parameters]
+[billing-python.local_start_lambda.parameters]
 warm_containers = "EAGER"

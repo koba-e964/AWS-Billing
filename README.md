@@ -16,7 +16,7 @@ sam local invoke --parameter-overrides SlackWebhookUrl=${SLACK_WEBHOOK_URL}
 デプロイ
 
 ```
-sam deploy --parameter-overrides SlackWebhookUrl=${SLACK_WEBHOOK_URL}
+sam deploy --parameter-overrides SlackWebhookUrl=${SLACK_WEBHOOK_URL} --config-env billing-python
 ```
 
 # 参考資料
